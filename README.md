@@ -18,6 +18,14 @@ Open `/admin/usage` and unlock with `USAGE_DASHBOARD_TOKEN`.
 
 See [docs/usage-monitoring.md](docs/usage-monitoring.md) for Google Cloud quota/budget alerts and Upstash free-tier monitoring.
 
+## Monetisation (optional)
+
+Ads and tip links are off until you set env vars. See [docs/monetisation.md](docs/monetisation.md).
+
+- `/about` and `/privacy` — content pages for users and AdSense review
+- List + shop-detail AdSense slots (not on the map)
+- “Help cover map costs” tip link when `NEXT_PUBLIC_SUPPORT_URL` is set
+
 ## Stack
 
 Next.js App Router, Tailwind, `@vis.gl/react-google-maps`, server Places + Upstash cache.

@@ -21,7 +21,7 @@ import {
   recordUsage,
 } from "@/lib/usage";
 
-const NEARBY_CACHE_TTL_SECONDS = 14 * 24 * 60 * 60;
+const NEARBY_CACHE_TTL_SECONDS = 21 * 24 * 60 * 60;
 
 type CachedNearby = {
   shops: Shop[];
