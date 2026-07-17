@@ -5,6 +5,9 @@ import { APIProvider } from "@vis.gl/react-google-maps";
 import { ShopMap, type MapViewport } from "@/components/ShopMap";
 import { ShopList } from "@/components/ShopList";
 import { ShopDetail } from "@/components/ShopDetail";
+import { SupportLink } from "@/components/SupportLink";
+import Link from "next/link";
+import { adsenseClientId, supportUrl } from "@/lib/monetisation";
 import { filterShopsByCategory } from "@/lib/categories";
 import { searchRadiusForBounds } from "@/lib/search-area";
 import {
@@ -315,29 +318,32 @@ function LocatorInner() {
             </h1>
             <p className="text-xs text-stone-500 sm:text-sm">{statusMessage}</p>
           </div>
-          <div className="flex gap-1 rounded-lg bg-stone-100 p-1">
-            <button
-              type="button"
-              onClick={() => setView("map")}
-              className={`rounded-md px-3 py-1.5 text-sm ${
-                view === "map"
-                  ? "bg-white text-teal-900 shadow"
-                  : "text-stone-600"
-              }`}
-            >
-              Map
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("list")}
-              className={`rounded-md px-3 py-1.5 text-sm ${
-                view === "list"
-                  ? "bg-white text-teal-900 shadow"
-                  : "text-stone-600"
-              }`}
-            >
-              List
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <SupportLink compact />
+            <div className="flex gap-1 rounded-lg bg-stone-100 p-1">
+              <button
+                type="button"
+                onClick={() => setView("map")}
+                className={`rounded-md px-3 py-1.5 text-sm ${
+                  view === "map"
+                    ? "bg-white text-teal-900 shadow"
+                    : "text-stone-600"
+                }`}
+              >
+                Map
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("list")}
+                className={`rounded-md px-3 py-1.5 text-sm ${
+                  view === "list"
+                    ? "bg-white text-teal-900 shadow"
+                    : "text-stone-600"
+                }`}
+              >
+                List
+              </button>
+            </div>
           </div>
         </div>
 
@@ -431,6 +437,26 @@ function LocatorInner() {
           <ShopDetail shop={selected} onClose={() => setSelected(null)} />
         )}
       </main>
+
+      <footer className="z-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-stone-200 bg-white/90 px-3 py-1.5 text-[11px] text-stone-500 sm:text-xs">
+        <Link href="/about" className="hover:text-teal-800">
+          About
+        </Link>
+        <span aria-hidden="true">·</span>
+        <Link href="/privacy" className="hover:text-teal-800">
+          Privacy
+        </Link>
+        {(adsenseClientId() || supportUrl()) && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span>
+              {adsenseClientId()
+                ? "Ads help cover map costs"
+                : "Tips help cover map costs"}
+            </span>
+          </>
+        )}
+      </footer>
     </div>
   );
 }

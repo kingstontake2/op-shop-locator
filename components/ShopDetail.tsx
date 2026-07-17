@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AdSlot } from "@/components/AdSlot";
+import { adsenseDetailSlot } from "@/lib/monetisation";
 import { photoUrl } from "@/lib/photo";
 import type { Shop } from "@/lib/types";
 
@@ -166,6 +168,12 @@ export function ShopDetail({ shop, onClose }: ShopDetailProps) {
           </p>
         )}
       </div>
+
+      <AdSlot
+        slot={adsenseDetailSlot()}
+        className="border-t border-stone-100"
+        label="Sponsored"
+      />
     </div>
   );
 }
