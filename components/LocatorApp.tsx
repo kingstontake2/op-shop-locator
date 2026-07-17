@@ -1,14 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { APIProvider, useMapsLibrary } from "@vis.gl/react-google-maps";
-import { ShopMap } from "@/components/ShopMap";
+import { APIProvider } from "@vis.gl/react-google-maps";
+import { ShopMap, type MapViewport } from "@/components/ShopMap";
 import { ShopList } from "@/components/ShopList";
 import { ShopDetail } from "@/components/ShopDetail";
 import { filterShopsByCategory } from "@/lib/categories";
+import { searchRadiusForBounds } from "@/lib/search-area";
 import {
   AUCKLAND_CENTER,
+  AUCKLAND_DEFAULT_ZOOM,
   DEFAULT_RADIUS_M,
+  LOCAL_SEARCH_ZOOM,
+  type GeocodeResponse,
+  type NearbyResponse,
   type Shop,
   type ShopCategory,
 } from "@/lib/types";
@@ -27,116 +32,163 @@ type LocatorAppProps = {
   mapsApiKey: string;
 };
 
-function placeToShop(place: google.maps.places.PlaceResult): Shop | null {
-  const loc = place.geometry?.location;
-  if (!place.place_id || !place.name || !loc) return null;
-  return {
-    id: place.place_id,
-    name: place.name,
-    address: place.vicinity ?? place.formatted_address ?? "",
-    lat: loc.lat(),
-    lng: loc.lng(),
-    openNow: (() => {
-      if (typeof place.opening_hours?.isOpen === "function") {
-        return place.opening_hours.isOpen() ?? null;
-      }
-      return (
-        (place.opening_hours as { open_now?: boolean } | undefined)?.open_now ??
-        null
-      );
-    })(),
-    rating: place.rating ?? null,
-    types: place.types ?? [],
-    photoReference: place.photos?.[0]?.getUrl
-      ? place.photos[0].getUrl({ maxWidth: 400 })
-      : null,
-    phone: place.formatted_phone_number ?? null,
-    hours: place.opening_hours?.weekday_text ?? null,
-    website: place.website ?? null,
-  };
-}
+type SearchArea = {
+  center: { lat: number; lng: number };
+  radius: number;
+  label: string;
+  zoom?: number;
+  resetCamera?: boolean;
+};
 
 function LocatorInner() {
-  const placesLib = useMapsLibrary("places");
-  const serviceRef = useRef<google.maps.places.PlacesService | null>(null);
   const [view, setView] = useState<ViewMode>("map");
   const [shops, setShops] = useState<Shop[]>([]);
-  const [center, setCenter] = useState<{ lat: number; lng: number }>(
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>(
     AUCKLAND_CENTER,
   );
+  const [mapZoom, setMapZoom] = useState(AUCKLAND_DEFAULT_ZOOM);
+  const [cameraKey, setCameraKey] = useState(0);
   const [selected, setSelected] = useState<Shop | null>(null);
   const [category, setCategory] = useState<ShopCategory>("all");
   const [suburb, setSuburb] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState("Auckland CBD");
+  const [statusMessage, setStatusMessage] = useState("Wider Auckland");
+  const [viewportDirty, setViewportDirty] = useState(false);
+  const [viewportTooWide, setViewportTooWide] = useState(false);
 
-  useEffect(() => {
-    if (!placesLib) return;
-    const attribution = document.createElement("div");
-    serviceRef.current = new placesLib.PlacesService(attribution);
-  }, [placesLib]);
+  const viewportRef = useRef<MapViewport | null>(null);
+  const searchedAreaRef = useRef<{
+    center: { lat: number; lng: number };
+    radius: number;
+  } | null>(null);
+  const searchGenerationRef = useRef(0);
 
-  const loadNearby = useCallback(
-    (lat: number, lng: number, label: string) => {
-      if (!placesLib || !serviceRef.current) return;
-      setLoading(true);
-      setError(null);
-      setSelected(null);
+  const loadNearby = useCallback(async (area: SearchArea) => {
+    const generation = ++searchGenerationRef.current;
+    setLoading(true);
+    setError(null);
+    setSelected(null);
 
-      const keywords = ["op shop", "charity shop"];
-      const byId = new Map<string, Shop>();
-      let remaining = keywords.length;
-
-      const finish = () => {
-        remaining -= 1;
-        if (remaining > 0) return;
-        const list = Array.from(byId.values());
-        setShops(list);
-        setCenter({ lat, lng });
-        setStatusMessage(label);
-        setLoading(false);
-        if (list.length === 0) {
-          setError("No op shops found near this location.");
-        }
+    try {
+      const params = new URLSearchParams({
+        lat: String(area.center.lat),
+        lng: String(area.center.lng),
+        radius: String(area.radius),
+      });
+      const response = await fetch(`/api/nearby?${params.toString()}`);
+      const data = (await response.json()) as NearbyResponse & {
+        error?: string;
       };
 
-      for (const keyword of keywords) {
-        serviceRef.current.nearbySearch(
-          {
-            location: { lat, lng },
-            radius: DEFAULT_RADIUS_M,
-            keyword,
-          },
-          (results, status) => {
-            if (
-              status === placesLib.PlacesServiceStatus.OK &&
-              results
-            ) {
-              for (const place of results) {
-                const shop = placeToShop(place);
-                if (shop && !byId.has(shop.id)) byId.set(shop.id, shop);
-              }
-            } else if (
-              status !== placesLib.PlacesServiceStatus.ZERO_RESULTS &&
-              status !== placesLib.PlacesServiceStatus.OK
-            ) {
-              setError(`Places search failed: ${status}`);
-            }
-            finish();
-          },
+      if (generation !== searchGenerationRef.current) return;
+
+      if (response.status === 429) {
+        throw new Error(
+          data.error ??
+            "Daily search limit reached for your network. Try again tomorrow or use a cached area.",
         );
       }
-    },
-    [placesLib],
-  );
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to load shops");
+      }
+
+      setShops(data.shops);
+      setMapCenter(area.center);
+      if (area.zoom != null) setMapZoom(area.zoom);
+      if (area.resetCamera) setCameraKey((key) => key + 1);
+
+      searchedAreaRef.current = {
+        center: area.center,
+        radius: area.radius,
+      };
+      setViewportDirty(false);
+      setViewportTooWide(false);
+
+      const sourceNote =
+        data.source === "cache" ? " · cached" : data.source === "google" ? "" : "";
+      setStatusMessage(
+        `${area.label} · ${Math.round(area.radius / 1000)} km${sourceNote}`,
+      );
+
+      if (data.shops.length === 0) {
+        setError("No op shops found in this area. Try zooming or moving the map.");
+      }
+    } catch (err) {
+      if (generation !== searchGenerationRef.current) return;
+      setShops([]);
+      setError(err instanceof Error ? err.message : "Failed to load shops");
+    } finally {
+      if (generation === searchGenerationRef.current) {
+        setLoading(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    if (!placesLib || !serviceRef.current) return;
-    loadNearby(AUCKLAND_CENTER.lat, AUCKLAND_CENTER.lng, "Auckland CBD");
-  }, [placesLib, loadNearby]);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      void loadNearby({
+        center: AUCKLAND_CENTER,
+        radius: DEFAULT_RADIUS_M,
+        label: "Wider Auckland",
+        zoom: AUCKLAND_DEFAULT_ZOOM,
+        resetCamera: true,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadNearby]);
 
   const filtered = filterShopsByCategory(shops, category);
+
+  const onViewportChange = useCallback((viewport: MapViewport) => {
+    viewportRef.current = viewport;
+    const { radius, tooWide } = searchRadiusForBounds(
+      viewport.center,
+      viewport.bounds,
+    );
+    setViewportTooWide(tooWide);
+
+    const searched = searchedAreaRef.current;
+    if (!searched) {
+      setViewportDirty(true);
+      return;
+    }
+
+    const moved =
+      Math.abs(viewport.center.lat - searched.center.lat) > 0.01 ||
+      Math.abs(viewport.center.lng - searched.center.lng) > 0.01 ||
+      Math.abs(radius - searched.radius) > 2_500;
+
+    setViewportDirty(moved || tooWide);
+  }, []);
+
+  function searchThisArea() {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      setError("Move the map a little, then try Search this area again.");
+      return;
+    }
+
+    const { radius, tooWide } = searchRadiusForBounds(
+      viewport.center,
+      viewport.bounds,
+    );
+    if (tooWide) {
+      setViewportTooWide(true);
+      setError("Zoom in a bit — Google searches are limited to about 50 km.");
+      return;
+    }
+
+    void loadNearby({
+      center: viewport.center,
+      radius,
+      label: "This map area",
+    });
+  }
 
   function useMyLocation() {
     if (!navigator.geolocation) {
@@ -146,91 +198,65 @@ function LocatorInner() {
     setLoading(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        loadNearby(
-          pos.coords.latitude,
-          pos.coords.longitude,
-          "Your location",
-        );
+        void loadNearby({
+          center: {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          },
+          radius: DEFAULT_RADIUS_M,
+          label: "Your location",
+          zoom: LOCAL_SEARCH_ZOOM,
+          resetCamera: true,
+        });
       },
       () => {
         setLoading(false);
         setError("Could not get your location. Showing Auckland instead.");
-        loadNearby(AUCKLAND_CENTER.lat, AUCKLAND_CENTER.lng, "Auckland CBD");
+        void loadNearby({
+          center: AUCKLAND_CENTER,
+          radius: DEFAULT_RADIUS_M,
+          label: "Wider Auckland",
+          zoom: AUCKLAND_DEFAULT_ZOOM,
+          resetCamera: true,
+        });
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
   }
 
-  function onSuburbSearch(e: React.FormEvent) {
+  async function onSuburbSearch(e: React.FormEvent) {
     e.preventDefault();
     const q = suburb.trim();
-    if (!q || !placesLib || !serviceRef.current) return;
+    if (!q) return;
+
     setLoading(true);
     setError(null);
-    const query = /new zealand|auckland|wellington|christchurch|\bnz\b/i.test(q)
-      ? q
-      : `${q}, New Zealand`;
+    try {
+      const response = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+      const data = (await response.json()) as GeocodeResponse & {
+        error?: string;
+      };
 
-    serviceRef.current.textSearch({ query }, (results, status) => {
-      if (
-        status === placesLib.PlacesServiceStatus.OK &&
-        results?.[0]?.geometry?.location
-      ) {
-        const loc = results[0].geometry.location;
-        loadNearby(
-          loc.lat(),
-          loc.lng(),
-          results[0].formatted_address ?? results[0].name ?? q,
+      if (response.status === 429) {
+        throw new Error(
+          data.error ?? "Daily suburb-search limit reached. Try again tomorrow.",
         );
-      } else {
-        setLoading(false);
-        setError("Suburb not found. Try another name.");
       }
-    });
-  }
+      if (!response.ok) {
+        throw new Error(data.error ?? "Suburb not found");
+      }
 
-  async function enrichShop(shop: Shop): Promise<Shop> {
-    if (!placesLib || !serviceRef.current) return shop;
-    if (shop.hours && shop.phone) return shop;
-
-    return new Promise((resolve) => {
-      serviceRef.current!.getDetails(
-        {
-          placeId: shop.id,
-          fields: [
-            "formatted_phone_number",
-            "website",
-            "opening_hours",
-            "photos",
-            "vicinity",
-            "formatted_address",
-          ],
-        },
-        (place, status) => {
-          if (status !== placesLib.PlacesServiceStatus.OK || !place) {
-            resolve(shop);
-            return;
-          }
-          resolve({
-            ...shop,
-            address:
-              place.vicinity ?? place.formatted_address ?? shop.address,
-            phone: place.formatted_phone_number ?? shop.phone,
-            website: place.website ?? shop.website,
-            hours: place.opening_hours?.weekday_text ?? shop.hours,
-            photoReference: place.photos?.[0]
-              ? place.photos[0].getUrl({ maxWidth: 400 })
-              : shop.photoReference,
-          });
-        },
-      );
-    });
-  }
-
-  async function onSelect(shop: Shop) {
-    setSelected(shop);
-    const enriched = await enrichShop(shop);
-    setSelected(enriched);
+      await loadNearby({
+        center: { lat: data.lat, lng: data.lng },
+        radius: DEFAULT_RADIUS_M,
+        label: data.formattedAddress,
+        zoom: LOCAL_SEARCH_ZOOM,
+        resetCamera: true,
+      });
+    } catch (err) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : "Suburb search failed");
+    }
   }
 
   return (
@@ -324,19 +350,34 @@ function LocatorInner() {
           </div>
         )}
 
+        {view === "map" && viewportDirty && !loading && (
+          <div className="pointer-events-none absolute inset-x-0 top-12 z-20 flex justify-center px-3 sm:top-4">
+            <button
+              type="button"
+              onClick={searchThisArea}
+              className="pointer-events-auto rounded-full bg-teal-800 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-teal-900"
+            >
+              {viewportTooWide ? "Zoom in to search this area" : "Search this area"}
+            </button>
+          </div>
+        )}
+
         <div className={view === "map" ? "h-full" : "hidden h-full"}>
           <ShopMap
             shops={filtered}
-            center={center}
+            center={mapCenter}
+            zoom={mapZoom}
+            cameraKey={cameraKey}
             selectedId={selected?.id ?? null}
-            onSelect={onSelect}
+            onSelect={setSelected}
+            onViewportChange={onViewportChange}
           />
         </div>
         <div className={view === "list" ? "h-full" : "hidden h-full"}>
           <ShopList
             shops={filtered}
             selectedId={selected?.id ?? null}
-            onSelect={onSelect}
+            onSelect={setSelected}
           />
         </div>
 
@@ -358,7 +399,7 @@ export function LocatorApp({ mapsApiKey }: LocatorAppProps) {
   }
 
   return (
-    <APIProvider apiKey={mapsApiKey} libraries={["places"]}>
+    <APIProvider apiKey={mapsApiKey}>
       <LocatorInner />
     </APIProvider>
   );

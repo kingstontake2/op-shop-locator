@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchNearbyOpShops } from "@/lib/places";
-import { AUCKLAND_CENTER, DEFAULT_RADIUS_M } from "@/lib/types";
+import { nearbyCacheKey } from "@/lib/cache-keys";
+import {
+  checkRateLimit,
+  getClientIp,
+  rateLimitHeaders,
+  rateLimitedResponse,
+} from "@/lib/rate-limit";
+import { getRedis } from "@/lib/redis";
+import { hasGoogleMapsServerKey, searchNearbyOpShops } from "@/lib/places";
+import {
+  AUCKLAND_CENTER,
+  DEFAULT_RADIUS_M,
+  MAX_SEARCH_RADIUS_M,
+  type NearbyResponse,
+  type Shop,
+} from "@/lib/types";
+
+const NEARBY_CACHE_TTL_SECONDS = 14 * 24 * 60 * 60;
+
+type CachedNearby = {
+  shops: Shop[];
+  status: string;
+};
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -20,20 +41,56 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!Number.isFinite(radius) || radius <= 0 || radius > 50000) {
+  if (
+    !Number.isFinite(radius) ||
+    radius <= 0 ||
+    radius > MAX_SEARCH_RADIUS_M
+  ) {
     return NextResponse.json(
-      { error: "radius must be between 1 and 50000" },
+      {
+        error: `radius must be between 1 and ${MAX_SEARCH_RADIUS_M}`,
+      },
       { status: 400 },
     );
   }
 
-  if (!process.env.GOOGLE_MAPS_API_KEY) {
+  const cacheKey = nearbyCacheKey(lat, lng, radius);
+  const redis = getRedis();
+
+  if (redis) {
+    try {
+      const cached = await redis.get<CachedNearby>(cacheKey);
+      if (cached?.shops) {
+        const body: NearbyResponse = {
+          shops: cached.shops,
+          center: { lat, lng },
+          radius,
+          status: cached.status ?? "OK",
+          source: "cache",
+        };
+        return NextResponse.json(body, {
+          headers: {
+            "X-Cache": "HIT",
+          },
+        });
+      }
+    } catch {
+      // Cache read failures should not block Google fallback.
+    }
+  }
+
+  const rate = await checkRateLimit("nearby", getClientIp(request));
+  if (!rate.success) {
+    return rateLimitedResponse(rate);
+  }
+
+  if (!hasGoogleMapsServerKey()) {
     return NextResponse.json(
       {
         error:
-          "GOOGLE_MAPS_API_KEY is not set. Copy .env.local.example to .env.local and add your key.",
+          "GOOGLE_MAPS_SERVER_KEY is not set. Copy .env.local.example to .env.local and add a server Places key.",
       },
-      { status: 500 },
+      { status: 500, headers: rateLimitHeaders(rate) },
     );
   }
 
@@ -51,18 +108,44 @@ export async function GET(request: NextRequest) {
           status,
           shops: [],
           center: { lat, lng },
+          radius,
+          source: "google" as const,
         },
-        { status: 502 },
+        { status: 502, headers: rateLimitHeaders(rate) },
       );
     }
 
-    return NextResponse.json({
+    if (redis && (status === "OK" || status === "ZERO_RESULTS")) {
+      try {
+        await redis.set(
+          cacheKey,
+          { shops, status } satisfies CachedNearby,
+          { ex: NEARBY_CACHE_TTL_SECONDS },
+        );
+      } catch {
+        // Cache write failures should not fail the response.
+      }
+    }
+
+    const body: NearbyResponse = {
       shops,
       center: { lat, lng },
+      radius,
       status,
+      source: "google",
+    };
+
+    return NextResponse.json(body, {
+      headers: {
+        ...rateLimitHeaders(rate),
+        "X-Cache": "MISS",
+      },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: 500, headers: rateLimitHeaders(rate) },
+    );
   }
 }

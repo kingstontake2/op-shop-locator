@@ -15,6 +15,7 @@ type PlacesNearbyResult = {
 type PlacesNearbyResponse = {
   status: string;
   results?: PlacesNearbyResult[];
+  next_page_token?: string;
   error_message?: string;
 };
 
@@ -25,13 +26,23 @@ type PlaceDetailsResult = {
   photos?: { photo_reference: string }[];
 };
 
-function getServerKey(): string {
-  const key =
-    process.env.GOOGLE_MAPS_SERVER_KEY || process.env.GOOGLE_MAPS_API_KEY;
+/** Google Nearby Search returns at most 3 pages of 20 results. */
+const MAX_NEARBY_PAGES = 3;
+/** next_page_token is briefly invalid; Google recommends a short delay. */
+const PAGE_TOKEN_DELAY_MS = 2_000;
+
+export function getGoogleMapsServerKey(): string {
+  const key = process.env.GOOGLE_MAPS_SERVER_KEY?.trim();
   if (!key) {
-    throw new Error("GOOGLE_MAPS_API_KEY is not set");
+    throw new Error(
+      "GOOGLE_MAPS_SERVER_KEY is not set. Server Places calls require a dedicated key (no HTTP referrer restriction).",
+    );
   }
   return key;
+}
+
+export function hasGoogleMapsServerKey(): boolean {
+  return Boolean(process.env.GOOGLE_MAPS_SERVER_KEY?.trim());
 }
 
 export function normalizeShop(result: PlacesNearbyResult): Shop | null {
@@ -57,39 +68,70 @@ export function normalizeShop(result: PlacesNearbyResult): Shop | null {
   };
 }
 
-export async function searchNearbyOpShops(
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchNearbyPage(
   lat: number,
   lng: number,
   radius: number,
-): Promise<{ shops: Shop[]; status: string; errorMessage?: string }> {
-  const key = getServerKey();
-  const keywords = ["op shop", "charity shop"];
-  const byId = new Map<string, Shop>();
-  let lastStatus = "ZERO_RESULTS";
-  let errorMessage: string | undefined;
-
-  for (const keyword of keywords) {
-    const url = new URL(
-      "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
-    );
+  keyword: string,
+  key: string,
+  pageToken?: string,
+): Promise<PlacesNearbyResponse> {
+  const url = new URL(
+    "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
+  );
+  if (pageToken) {
+    url.searchParams.set("pagetoken", pageToken);
+  } else {
     url.searchParams.set("location", `${lat},${lng}`);
     url.searchParams.set("radius", String(radius));
     url.searchParams.set("keyword", keyword);
-    url.searchParams.set("key", key);
+  }
+  url.searchParams.set("key", key);
 
-    const res = await fetch(url.toString());
-    if (!res.ok) {
-      throw new Error(`Places Nearby failed: ${res.status}`);
+  const res = await fetch(url.toString());
+  if (!res.ok) {
+    throw new Error(`Places Nearby failed: ${res.status}`);
+  }
+
+  return (await res.json()) as PlacesNearbyResponse;
+}
+
+async function searchKeywordPages(
+  lat: number,
+  lng: number,
+  radius: number,
+  keyword: string,
+  key: string,
+  byId: Map<string, Shop>,
+): Promise<{ status: string; errorMessage?: string }> {
+  let pageToken: string | undefined;
+  let lastStatus = "ZERO_RESULTS";
+  let errorMessage: string | undefined;
+
+  for (let page = 0; page < MAX_NEARBY_PAGES; page++) {
+    if (pageToken) {
+      await sleep(PAGE_TOKEN_DELAY_MS);
     }
 
-    const data = (await res.json()) as PlacesNearbyResponse;
+    const data = await fetchNearbyPage(
+      lat,
+      lng,
+      radius,
+      keyword,
+      key,
+      pageToken,
+    );
     lastStatus = data.status;
     if (data.error_message) {
       errorMessage = data.error_message;
     }
 
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-      continue;
+      break;
     }
 
     for (const result of data.results ?? []) {
@@ -97,6 +139,40 @@ export async function searchNearbyOpShops(
       if (shop && !byId.has(shop.id)) {
         byId.set(shop.id, shop);
       }
+    }
+
+    if (!data.next_page_token) {
+      break;
+    }
+    pageToken = data.next_page_token;
+  }
+
+  return { status: lastStatus, errorMessage };
+}
+
+export async function searchNearbyOpShops(
+  lat: number,
+  lng: number,
+  radius: number,
+): Promise<{ shops: Shop[]; status: string; errorMessage?: string }> {
+  const key = getGoogleMapsServerKey();
+  const keywords = ["op shop", "charity shop"];
+  const byId = new Map<string, Shop>();
+  let lastStatus = "ZERO_RESULTS";
+  let errorMessage: string | undefined;
+
+  for (const keyword of keywords) {
+    const pageResult = await searchKeywordPages(
+      lat,
+      lng,
+      radius,
+      keyword,
+      key,
+      byId,
+    );
+    lastStatus = pageResult.status;
+    if (pageResult.errorMessage) {
+      errorMessage = pageResult.errorMessage;
     }
   }
 
@@ -113,7 +189,7 @@ export async function fetchPlaceDetails(placeId: string): Promise<{
   hours: string[] | null;
   photoReference: string | null;
 }> {
-  const key = getServerKey();
+  const key = getGoogleMapsServerKey();
   const url = new URL(
     "https://maps.googleapis.com/maps/api/place/details/json",
   );
@@ -155,7 +231,7 @@ export async function fetchPlaceDetails(placeId: string): Promise<{
 export async function geocodeSuburb(
   query: string,
 ): Promise<{ lat: number; lng: number; formattedAddress: string } | null> {
-  const key = getServerKey();
+  const key = getGoogleMapsServerKey();
   // Text Search keeps suburb lookup on Places API (no separate Geocoding enablement).
   const url = new URL(
     "https://maps.googleapis.com/maps/api/place/textsearch/json",

@@ -16,7 +16,9 @@ export type Shop = {
 export type NearbyResponse = {
   shops: Shop[];
   center: { lat: number; lng: number };
+  radius: number;
   status: string;
+  source?: "cache" | "google";
 };
 
 export type GeocodeResponse = {
@@ -32,4 +34,15 @@ export const AUCKLAND_CENTER = {
   lng: 174.7633,
 } as const;
 
-export const DEFAULT_RADIUS_M = 5000;
+export type MapBounds = {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+};
+
+export const MIN_SEARCH_RADIUS_M = 2_000;
+export const DEFAULT_RADIUS_M = 35_000;
+export const MAX_SEARCH_RADIUS_M = 50_000;
+export const AUCKLAND_DEFAULT_ZOOM = 9;
+export const LOCAL_SEARCH_ZOOM = 12;

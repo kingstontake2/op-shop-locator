@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasGoogleMapsServerKey, getGoogleMapsServerKey } from "@/lib/places";
 
 export async function GET(request: NextRequest) {
   const ref = request.nextUrl.searchParams.get("ref");
   const maxwidth = request.nextUrl.searchParams.get("maxwidth") ?? "400";
-  const key = process.env.GOOGLE_MAPS_API_KEY;
 
-  if (!ref || !key) {
-    return new NextResponse("Missing ref or API key", { status: 400 });
+  if (!ref) {
+    return new NextResponse("Missing ref", { status: 400 });
   }
 
+  if (!hasGoogleMapsServerKey()) {
+    return new NextResponse("GOOGLE_MAPS_SERVER_KEY is not set", {
+      status: 500,
+    });
+  }
+
+  const key = getGoogleMapsServerKey();
   const url = new URL(
     "https://maps.googleapis.com/maps/api/place/photo",
   );
