@@ -8,6 +8,11 @@ import {
 } from "@/lib/rate-limit";
 import { getRedis } from "@/lib/redis";
 import { fetchPlaceDetails, hasGoogleMapsServerKey } from "@/lib/places";
+import {
+  canMakeGoogleCall,
+  freeTierBlockedResponse,
+  recordUsage,
+} from "@/lib/usage";
 
 const DETAILS_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
@@ -35,13 +40,22 @@ export async function GET(request: NextRequest) {
     try {
       const cached = await redis.get<PlaceDetailsPayload>(cacheKey);
       if (cached) {
+        void recordUsage({ cache_hits: 1, redis_commands: 1 });
         return NextResponse.json(cached, {
           headers: { "X-Cache": "HIT" },
         });
       }
+      void recordUsage({ cache_misses: 1, redis_commands: 1 });
     } catch {
-      // Cache read failures should not block Google fallback.
+      void recordUsage({ cache_misses: 1 });
     }
+  } else {
+    void recordUsage({ cache_misses: 1 });
+  }
+
+  const guard = await canMakeGoogleCall("details");
+  if (!guard.allowed) {
+    return freeTierBlockedResponse("details", guard.used, guard.blockAt);
   }
 
   const rate = await checkRateLimit("details", getClientIp(request));
@@ -58,10 +72,12 @@ export async function GET(request: NextRequest) {
 
   try {
     const details = await fetchPlaceDetails(placeId);
+    void recordUsage({ details: 1, redis_commands: 3 });
 
     if (redis) {
       try {
         await redis.set(cacheKey, details, { ex: DETAILS_CACHE_TTL_SECONDS });
+        void recordUsage({ redis_commands: 1 });
       } catch {
         // Cache write failures should not fail the response.
       }

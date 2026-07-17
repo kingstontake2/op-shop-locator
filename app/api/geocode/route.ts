@@ -8,6 +8,11 @@ import {
 import { getRedis } from "@/lib/redis";
 import { geocodeSuburb, hasGoogleMapsServerKey } from "@/lib/places";
 import type { GeocodeResponse } from "@/lib/types";
+import {
+  canMakeGoogleCall,
+  freeTierBlockedResponse,
+  recordUsage,
+} from "@/lib/usage";
 
 const GEOCODE_CACHE_TTL_SECONDS = 60 * 60; // 1 hour
 
@@ -33,13 +38,22 @@ export async function GET(request: NextRequest) {
     try {
       const cached = await redis.get<GeocodeResponse>(cacheKey);
       if (cached) {
+        void recordUsage({ cache_hits: 1, redis_commands: 1 });
         return NextResponse.json(cached, {
           headers: { "X-Cache": "HIT" },
         });
       }
+      void recordUsage({ cache_misses: 1, redis_commands: 1 });
     } catch {
-      // Cache read failures should not block Google fallback.
+      void recordUsage({ cache_misses: 1 });
     }
+  } else {
+    void recordUsage({ cache_misses: 1 });
+  }
+
+  const guard = await canMakeGoogleCall("text_search");
+  if (!guard.allowed) {
+    return freeTierBlockedResponse("text_search", guard.used, guard.blockAt);
   }
 
   const rate = await checkRateLimit("geocode", getClientIp(request));
@@ -56,6 +70,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await geocodeSuburb(q);
+    void recordUsage({ text_search: 1, redis_commands: 3 });
+
     if (!result) {
       return NextResponse.json(
         { error: "No results for that suburb" },
@@ -66,6 +82,7 @@ export async function GET(request: NextRequest) {
     if (redis) {
       try {
         await redis.set(cacheKey, result, { ex: GEOCODE_CACHE_TTL_SECONDS });
+        void recordUsage({ redis_commands: 1 });
       } catch {
         // Cache write failures should not fail the response.
       }

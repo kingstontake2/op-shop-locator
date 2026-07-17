@@ -89,6 +89,12 @@ function LocatorInner() {
             "Daily search limit reached for your network. Try again tomorrow or use a cached area.",
         );
       }
+      if (response.status === 503) {
+        throw new Error(
+          data.error ??
+            "Monthly free-tier Google guard is active. Cached areas still work.",
+        );
+      }
       if (!response.ok) {
         throw new Error(data.error ?? "Failed to load shops");
       }
@@ -126,17 +132,57 @@ function LocatorInner() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      void loadNearby({
-        center: AUCKLAND_CENTER,
-        radius: DEFAULT_RADIUS_M,
-        label: "Wider Auckland",
-        zoom: AUCKLAND_DEFAULT_ZOOM,
-        resetCamera: true,
+    const mapLoadKey = "opshop:map-load-recorded";
+    if (typeof sessionStorage !== "undefined" && !sessionStorage.getItem(mapLoadKey)) {
+      sessionStorage.setItem(mapLoadKey, "1");
+      void fetch("/api/usage/map-load", { method: "POST" }).catch(() => {
+        // Usage telemetry must never block the UI.
       });
-    });
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const aucklandFallback = {
+      center: AUCKLAND_CENTER,
+      radius: DEFAULT_RADIUS_M,
+      label: "Wider Auckland",
+      zoom: AUCKLAND_DEFAULT_ZOOM,
+      resetCamera: true,
+    } as const;
+
+    function startDefaultSearch() {
+      if (cancelled) return;
+
+      if (!navigator.geolocation) {
+        void loadNearby(aucklandFallback);
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (cancelled) return;
+          void loadNearby({
+            center: {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+            },
+            radius: DEFAULT_RADIUS_M,
+            label: "Your location",
+            zoom: LOCAL_SEARCH_ZOOM,
+            resetCamera: true,
+          });
+        },
+        () => {
+          if (cancelled) return;
+          void loadNearby(aucklandFallback);
+        },
+        { enableHighAccuracy: true, timeout: 10000 },
+      );
+    }
+
+    queueMicrotask(startDefaultSearch);
     return () => {
       cancelled = true;
     };

@@ -15,6 +15,11 @@ import {
   type NearbyResponse,
   type Shop,
 } from "@/lib/types";
+import {
+  canMakeGoogleCall,
+  freeTierBlockedResponse,
+  recordUsage,
+} from "@/lib/usage";
 
 const NEARBY_CACHE_TTL_SECONDS = 14 * 24 * 60 * 60;
 
@@ -61,6 +66,7 @@ export async function GET(request: NextRequest) {
     try {
       const cached = await redis.get<CachedNearby>(cacheKey);
       if (cached?.shops) {
+        void recordUsage({ cache_hits: 1, redis_commands: 1 });
         const body: NearbyResponse = {
           shops: cached.shops,
           center: { lat, lng },
@@ -74,9 +80,21 @@ export async function GET(request: NextRequest) {
           },
         });
       }
+      void recordUsage({ cache_misses: 1, redis_commands: 1 });
     } catch {
-      // Cache read failures should not block Google fallback.
+      void recordUsage({ cache_misses: 1 });
     }
+  } else {
+    void recordUsage({ cache_misses: 1 });
+  }
+
+  const guard = await canMakeGoogleCall("nearby_pages");
+  if (!guard.allowed) {
+    return freeTierBlockedResponse(
+      "nearby_pages",
+      guard.used,
+      guard.blockAt,
+    );
   }
 
   const rate = await checkRateLimit("nearby", getClientIp(request));
@@ -95,11 +113,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { shops, status, errorMessage } = await searchNearbyOpShops(
-      lat,
-      lng,
-      radius,
-    );
+    const { shops, status, errorMessage, googleRequestCount } =
+      await searchNearbyOpShops(lat, lng, radius);
+
+    void recordUsage({
+      nearby_pages: googleRequestCount,
+      redis_commands: 3, // approximate Upstash ratelimit cost
+    });
 
     if (status !== "OK" && status !== "ZERO_RESULTS") {
       return NextResponse.json(
@@ -122,6 +142,7 @@ export async function GET(request: NextRequest) {
           { shops, status } satisfies CachedNearby,
           { ex: NEARBY_CACHE_TTL_SECONDS },
         );
+        void recordUsage({ redis_commands: 1 });
       } catch {
         // Cache write failures should not fail the response.
       }

@@ -107,10 +107,11 @@ async function searchKeywordPages(
   keyword: string,
   key: string,
   byId: Map<string, Shop>,
-): Promise<{ status: string; errorMessage?: string }> {
+): Promise<{ status: string; errorMessage?: string; pages: number }> {
   let pageToken: string | undefined;
   let lastStatus = "ZERO_RESULTS";
   let errorMessage: string | undefined;
+  let pages = 0;
 
   for (let page = 0; page < MAX_NEARBY_PAGES; page++) {
     if (pageToken) {
@@ -125,6 +126,7 @@ async function searchKeywordPages(
       key,
       pageToken,
     );
+    pages += 1;
     lastStatus = data.status;
     if (data.error_message) {
       errorMessage = data.error_message;
@@ -147,19 +149,25 @@ async function searchKeywordPages(
     pageToken = data.next_page_token;
   }
 
-  return { status: lastStatus, errorMessage };
+  return { status: lastStatus, errorMessage, pages };
 }
 
 export async function searchNearbyOpShops(
   lat: number,
   lng: number,
   radius: number,
-): Promise<{ shops: Shop[]; status: string; errorMessage?: string }> {
+): Promise<{
+  shops: Shop[];
+  status: string;
+  errorMessage?: string;
+  googleRequestCount: number;
+}> {
   const key = getGoogleMapsServerKey();
   const keywords = ["op shop", "charity shop"];
   const byId = new Map<string, Shop>();
   let lastStatus = "ZERO_RESULTS";
   let errorMessage: string | undefined;
+  let googleRequestCount = 0;
 
   for (const keyword of keywords) {
     const pageResult = await searchKeywordPages(
@@ -170,6 +178,7 @@ export async function searchNearbyOpShops(
       key,
       byId,
     );
+    googleRequestCount += pageResult.pages;
     lastStatus = pageResult.status;
     if (pageResult.errorMessage) {
       errorMessage = pageResult.errorMessage;
@@ -180,6 +189,7 @@ export async function searchNearbyOpShops(
     shops: Array.from(byId.values()),
     status: byId.size > 0 ? "OK" : lastStatus,
     errorMessage,
+    googleRequestCount,
   };
 }
 

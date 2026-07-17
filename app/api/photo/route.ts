@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hasGoogleMapsServerKey, getGoogleMapsServerKey } from "@/lib/places";
+import {
+  canMakeGoogleCall,
+  freeTierBlockedResponse,
+  recordUsage,
+} from "@/lib/usage";
 
 export async function GET(request: NextRequest) {
   const ref = request.nextUrl.searchParams.get("ref");
@@ -15,6 +20,11 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  const guard = await canMakeGoogleCall("photos");
+  if (!guard.allowed) {
+    return freeTierBlockedResponse("photos", guard.used, guard.blockAt);
+  }
+
   const key = getGoogleMapsServerKey();
   const url = new URL(
     "https://maps.googleapis.com/maps/api/place/photo",
@@ -27,6 +37,8 @@ export async function GET(request: NextRequest) {
   if (!res.ok || !res.body) {
     return new NextResponse("Photo fetch failed", { status: 502 });
   }
+
+  void recordUsage({ photos: 1 });
 
   const contentType = res.headers.get("content-type") ?? "image/jpeg";
   return new NextResponse(res.body, {
