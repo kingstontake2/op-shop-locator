@@ -1,3 +1,4 @@
+import { isLikelyOpShop } from "./op-shop-eligibility";
 import type { Shop } from "./types";
 
 type PlacesNearbyResult = {
@@ -185,9 +186,11 @@ export async function searchNearbyOpShops(
     }
   }
 
+  const shops = Array.from(byId.values()).filter(isLikelyOpShop);
+
   return {
-    shops: Array.from(byId.values()),
-    status: byId.size > 0 ? "OK" : lastStatus,
+    shops,
+    status: shops.length > 0 ? "OK" : lastStatus,
     errorMessage,
     googleRequestCount,
   };
