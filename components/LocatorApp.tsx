@@ -6,6 +6,7 @@ import { ShopMap, type MapViewport } from "@/components/ShopMap";
 import { ShopList } from "@/components/ShopList";
 import { ShopDetail } from "@/components/ShopDetail";
 import { SupportLink } from "@/components/SupportLink";
+import { BrandMark } from "@/components/BrandMark";
 import Link from "next/link";
 import { adsenseClientId, supportUrl } from "@/lib/monetisation";
 import { filterShopsByCategory } from "@/lib/categories";
@@ -309,111 +310,8 @@ function LocatorInner() {
   }
 
   return (
-    <div className="relative flex h-dvh flex-col bg-stone-100 text-stone-900">
-      <header className="z-10 border-b border-stone-200 bg-white/95 px-3 py-2 backdrop-blur sm:px-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="font-[family-name:var(--font-display)] text-xl tracking-tight text-teal-900 sm:text-2xl">
-              Op Shop Locator
-            </h1>
-            <p className="text-xs text-stone-500 sm:text-sm">{statusMessage}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <SupportLink compact />
-            <div className="flex gap-1 rounded-lg bg-stone-100 p-1">
-              <button
-                type="button"
-                onClick={() => setView("map")}
-                className={`rounded-md px-3 py-1.5 text-sm ${
-                  view === "map"
-                    ? "bg-white text-teal-900 shadow"
-                    : "text-stone-600"
-                }`}
-              >
-                Map
-              </button>
-              <button
-                type="button"
-                onClick={() => setView("list")}
-                className={`rounded-md px-3 py-1.5 text-sm ${
-                  view === "list"
-                    ? "bg-white text-teal-900 shadow"
-                    : "text-stone-600"
-                }`}
-              >
-                List
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <form onSubmit={onSuburbSearch} className="flex flex-1 gap-2">
-            <input
-              type="search"
-              value={suburb}
-              onChange={(e) => setSuburb(e.target.value)}
-              placeholder="Search suburb (e.g. Ponsonby)"
-              className="min-w-0 flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600"
-            />
-            <button
-              type="submit"
-              className="rounded-lg bg-teal-800 px-3 py-2 text-sm text-white hover:bg-teal-900"
-            >
-              Search
-            </button>
-          </form>
-          <button
-            type="button"
-            onClick={useMyLocation}
-            className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 hover:bg-stone-50"
-          >
-            Use my location
-          </button>
-        </div>
-
-        <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
-          {CATEGORIES.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setCategory(c.id)}
-              className={`shrink-0 rounded-lg px-3 py-1 text-xs sm:text-sm ${
-                category === c.id
-                  ? "bg-teal-800 text-white"
-                  : "bg-stone-100 text-stone-700 hover:bg-stone-200"
-              }`}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-      </header>
-
+    <div className="relative flex h-dvh flex-col bg-background text-foreground">
       <main className="relative min-h-0 flex-1">
-        {loading && (
-          <div className="absolute inset-x-0 top-0 z-10 bg-teal-900/90 px-3 py-2 text-center text-sm text-white">
-            Finding op shops…
-          </div>
-        )}
-        {error && (
-          <div className="absolute inset-x-0 top-0 z-10 bg-amber-100 px-3 py-2 text-center text-sm text-amber-950">
-            {error}
-          </div>
-        )}
-
-        {view === "map" && viewportDirty && !loading && (
-          <div className="pointer-events-none absolute inset-x-0 top-12 z-20 flex justify-center px-3 sm:top-4">
-            <button
-              type="button"
-              onClick={searchThisArea}
-              className="pointer-events-auto rounded-full bg-teal-800 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-teal-900"
-            >
-              {viewportTooWide ? "Zoom in to search this area" : "Search this area"}
-            </button>
-          </div>
-        )}
-
         <div className={view === "map" ? "h-full" : "hidden h-full"}>
           <ShopMap
             shops={filtered}
@@ -425,7 +323,11 @@ function LocatorInner() {
             onViewportChange={onViewportChange}
           />
         </div>
-        <div className={view === "list" ? "h-full" : "hidden h-full"}>
+        <div
+          className={
+            view === "list" ? "h-full bg-background" : "hidden h-full bg-background"
+          }
+        >
           <ShopList
             shops={filtered}
             selectedId={selected?.id ?? null}
@@ -433,17 +335,173 @@ function LocatorInner() {
           />
         </div>
 
+        {loading && (
+          <div className="absolute inset-x-0 top-0 z-40 h-1 overflow-hidden">
+            <div className="loading-shimmer h-full w-full" />
+          </div>
+        )}
+
+        {/* Floating chrome */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 px-3 pt-3 sm:px-4 sm:pt-4">
+          <div className="mx-auto flex max-w-3xl flex-col gap-2">
+            <div className="pointer-events-auto glass-panel flex flex-wrap items-center justify-between gap-2 rounded-2xl px-3 py-2.5 sm:px-4">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <BrandMark className="h-8 w-8 shrink-0" />
+                <div className="min-w-0">
+                  <h1 className="font-display text-lg leading-tight tracking-tight text-brand-ink sm:text-xl">
+                    Op Shop Locator
+                  </h1>
+                  <p className="truncate text-xs text-muted">{statusMessage}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <SupportLink compact />
+                <div
+                  className="flex rounded-xl bg-background/80 p-1"
+                  role="group"
+                  aria-label="View mode"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setView("map")}
+                    className={`focus-ring rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                      view === "map"
+                        ? "bg-surface text-brand-ink shadow-sm"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    Map
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setView("list")}
+                    className={`focus-ring rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                      view === "list"
+                        ? "bg-surface text-brand-ink shadow-sm"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    List
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pointer-events-auto glass-panel rounded-2xl px-3 py-2.5 sm:px-4">
+              <form
+                onSubmit={onSuburbSearch}
+                className="flex flex-col gap-2 sm:flex-row sm:items-center"
+              >
+                <div className="flex min-w-0 flex-1 gap-2">
+                  <input
+                    type="search"
+                    value={suburb}
+                    onChange={(e) => setSuburb(e.target.value)}
+                    placeholder="Search suburb (e.g. Ponsonby)"
+                    className="focus-ring min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none placeholder:text-muted/80 focus:border-brand"
+                  />
+                  <button
+                    type="submit"
+                    className="focus-ring shrink-0 rounded-xl bg-brand px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-ink"
+                  >
+                    Search
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={useMyLocation}
+                  className="focus-ring inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:bg-background"
+                  aria-label="Use my location"
+                >
+                  <LocationIcon />
+                  <span className="sm:inline">Near me</span>
+                </button>
+              </form>
+
+              <div
+                className="mt-2 flex gap-1 overflow-x-auto pb-0.5"
+                role="group"
+                aria-label="Category filters"
+              >
+                {CATEGORIES.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCategory(c.id)}
+                    className={`focus-ring shrink-0 rounded-lg px-3 py-1 text-xs transition-colors sm:text-sm ${
+                      category === c.id
+                        ? "bg-brand-ink text-white"
+                        : "bg-background/70 text-muted hover:bg-background hover:text-foreground"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {loading && (
+              <div className="flex justify-center">
+                <div className="animate-fade-up glass-panel rounded-full px-3.5 py-1.5 text-xs font-medium text-brand-ink sm:text-sm">
+                  Finding op shops…
+                </div>
+              </div>
+            )}
+
+            {error && !loading && (
+              <div className="flex justify-center">
+                <div className="animate-fade-up pointer-events-auto flex max-w-md items-start gap-2 rounded-2xl border border-amber-200/80 bg-amber-50/95 px-3.5 py-2.5 text-sm text-amber-950 shadow-sm backdrop-blur">
+                  <p className="min-w-0 flex-1">{error}</p>
+                  <button
+                    type="button"
+                    onClick={() => setError(null)}
+                    className="focus-ring flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-amber-800/70 hover:bg-amber-100 hover:text-amber-950"
+                    aria-label="Dismiss error"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {view === "map" && viewportDirty && !loading && (
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={searchThisArea}
+                  className="animate-fade-up focus-ring pointer-events-auto rounded-full bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-lg transition-colors hover:bg-brand-ink"
+                >
+                  {viewportTooWide
+                    ? "Zoom in to search this area"
+                    : "Search this area"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         {selected && (
           <ShopDetail shop={selected} onClose={() => setSelected(null)} />
         )}
       </main>
 
-      <footer className="z-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-stone-200 bg-white/90 px-3 py-1.5 text-[11px] text-stone-500 sm:text-xs">
-        <Link href="/about" className="hover:text-teal-800">
+      <footer className="z-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-border/60 bg-surface-elevated px-3 py-1.5 text-[11px] text-muted backdrop-blur sm:text-xs">
+        <Link href="/about" className="hover:text-brand-ink">
           About
         </Link>
         <span aria-hidden="true">·</span>
-        <Link href="/privacy" className="hover:text-teal-800">
+        <Link href="/privacy" className="hover:text-brand-ink">
           Privacy
         </Link>
         {(adsenseClientId() || supportUrl()) && (
@@ -461,11 +519,36 @@ function LocatorInner() {
   );
 }
 
+function LocationIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+    </svg>
+  );
+}
+
 export function LocatorApp({ mapsApiKey }: LocatorAppProps) {
   if (!mapsApiKey) {
     return (
-      <div className="flex h-dvh items-center justify-center bg-stone-100 px-6 text-center text-stone-700">
-        Set GOOGLE_MAPS_API_KEY in .env.local to run Op Shop Locator.
+      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background px-6 text-center text-foreground">
+        <BrandMark className="h-12 w-12" />
+        <div>
+          <p className="font-display text-xl text-brand-ink">Op Shop Locator</p>
+          <p className="mt-2 max-w-sm text-sm text-muted">
+            Set GOOGLE_MAPS_API_KEY in .env.local to run Op Shop Locator.
+          </p>
+        </div>
       </div>
     );
   }

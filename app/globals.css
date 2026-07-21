@@ -1,19 +1,108 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f5f5f0;
+  --background: #f3f0e8;
   --foreground: #1c1917;
-  --accent: #115e59;
+  --brand: #0f766e;
+  --brand-ink: #134e4a;
+  --surface: #fffcf7;
+  --surface-elevated: rgba(255, 252, 247, 0.92);
+  --muted: #78716c;
+  --open: #4d7c0f;
+  --border: #e7e0d4;
+  --ring: #0f766e;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-muted: var(--muted);
+  --color-open: var(--open);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-dm-sans);
+  --font-display: var(--font-fraunces);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+}
+
+.glass-panel {
+  background: var(--surface-elevated);
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  box-shadow:
+    0 1px 2px rgb(28 25 23 / 0.04),
+    0 8px 24px rgb(28 25 23 / 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-sheet-in {
+  animation: sheet-in 0.28s ease-out both;
+}
+
+.animate-fade-up {
+  animation: fade-up 0.22s ease-out both;
+}
+
+.loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--brand-ink) 88%, transparent) 0%,
+    color-mix(in srgb, var(--brand) 75%, white) 45%,
+    color-mix(in srgb, var(--brand-ink) 88%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-in,
+  .animate-fade-up,
+  .loading-shimmer {
+    animation: none;
+  }
 }

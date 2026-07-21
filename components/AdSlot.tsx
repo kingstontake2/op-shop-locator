@@ -43,10 +43,10 @@ export function AdSlot({
 
   return (
     <aside
-      className={`overflow-hidden bg-stone-50 ${className}`}
+      className={`overflow-hidden bg-background/80 ${className}`}
       aria-label={label}
     >
-      <p className="px-3 pt-2 text-[10px] uppercase tracking-wide text-stone-400">
+      <p className="px-3 pt-2 text-[10px] uppercase tracking-wide text-muted/70">
         Ad
       </p>
       <ins

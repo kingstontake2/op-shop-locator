@@ -20,7 +20,7 @@ export function SupportLink({ className = "", compact = false }: SupportLinkProp
       rel="noopener noreferrer"
       className={
         className ||
-        "rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1.5 text-xs text-teal-900 hover:bg-teal-100 sm:text-sm"
+        "focus-ring rounded-lg border border-brand/25 bg-brand/5 px-2.5 py-1.5 text-xs text-brand-ink transition-colors hover:bg-brand/10 sm:text-sm"
       }
     >
       {compact ? "Help keep free" : "Help cover map costs"}
