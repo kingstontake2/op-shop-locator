@@ -4,18 +4,22 @@ import { AdSenseScript } from "@/components/AdSenseScript";
 import "./globals.css";
 
 const dmSans = DM_Sans({
-  variable: "--font-geist-sans",
+  variable: "--font-dm-sans",
   subsets: ["latin"],
 });
 
 const fraunces = Fraunces({
-  variable: "--font-display",
+  variable: "--font-fraunces",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
   title: "Op Shop Locator",
   description: "Find op shops and charity shops near you in New Zealand",
+  icons: {
+    icon: [{ url: "/mark.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/mark.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({

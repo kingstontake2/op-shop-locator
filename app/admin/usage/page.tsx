@@ -78,18 +78,18 @@ export default function UsageAdminPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-stone-100 px-4 py-6 text-stone-900 sm:px-8">
+    <div className="min-h-dvh bg-background px-4 py-6 text-foreground sm:px-8">
       <div className="mx-auto max-w-4xl space-y-6">
         <header className="space-y-2">
-          <p className="text-sm text-teal-800">
-            <Link href="/" className="underline">
+          <p className="text-sm text-brand-ink">
+            <Link href="/" className="underline decoration-brand/30 underline-offset-2">
               ← Back to locator
             </Link>
           </p>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl text-teal-950">
+          <h1 className="font-display text-3xl text-brand-ink">
             Usage & free-tier guardrails
           </h1>
-          <p className="text-sm text-stone-600">
+          <p className="text-sm text-muted">
             Private counters for this app. Google Cloud and Upstash consoles remain
             authoritative for billed totals.
           </p>
@@ -97,15 +97,15 @@ export default function UsageAdminPage() {
 
         <form
           onSubmit={saveToken}
-          className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
+          className="rounded-2xl border border-border bg-surface p-4 shadow-sm"
         >
-          <label className="block text-sm font-medium text-stone-800">
+          <label className="block text-sm font-medium text-foreground">
             Dashboard token
             <input
               type="password"
               value={draftToken}
               onChange={(e) => setDraftToken(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+              className="focus-ring mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-brand"
               placeholder="USAGE_DASHBOARD_TOKEN"
               autoComplete="off"
             />
@@ -113,7 +113,7 @@ export default function UsageAdminPage() {
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="submit"
-              className="rounded-lg bg-teal-800 px-3 py-2 text-sm text-white hover:bg-teal-900"
+              className="focus-ring rounded-lg bg-brand px-3 py-2 text-sm text-white hover:bg-brand-ink"
             >
               Unlock dashboard
             </button>
@@ -122,14 +122,14 @@ export default function UsageAdminPage() {
                 <button
                   type="button"
                   onClick={() => void load(token)}
-                  className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm hover:bg-stone-50"
+                  className="focus-ring rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:bg-background"
                 >
                   Refresh
                 </button>
                 <button
                   type="button"
                   onClick={clearToken}
-                  className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm hover:bg-stone-50"
+                  className="focus-ring rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:bg-background"
                 >
                   Clear token
                 </button>
@@ -139,7 +139,7 @@ export default function UsageAdminPage() {
         </form>
 
         {loading && (
-          <p className="text-sm text-stone-600">Loading usage…</p>
+          <p className="text-sm text-muted">Loading usage…</p>
         )}
         {error && (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
@@ -172,7 +172,7 @@ export default function UsageAdminPage() {
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-lg font-semibold text-stone-900">
+              <h2 className="text-lg font-semibold text-foreground">
                 Free-tier pressure
               </h2>
               <div className="grid gap-3">
@@ -216,15 +216,15 @@ export default function UsageAdminPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-stone-900">
+            <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
+              <h2 className="text-lg font-semibold text-foreground">
                 Circuit breakers
               </h2>
               <ul className="mt-3 space-y-2 text-sm">
                 {Object.entries(snapshot.circuitBreakers).map(([metric, state]) => (
                   <li
                     key={metric}
-                    className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-2 last:border-0"
+                    className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-2 last:border-0"
                   >
                     <span className="capitalize">{formatMetric(metric)}</span>
                     <span>
@@ -243,14 +243,14 @@ export default function UsageAdminPage() {
               </ul>
             </section>
 
-            <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-stone-900">
+            <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
+              <h2 className="text-lg font-semibold text-foreground">
                 Today ({snapshot.dayKey})
               </h2>
               <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                 {Object.entries(snapshot.today).map(([metric, value]) => (
                   <div key={metric}>
-                    <dt className="capitalize text-stone-500">
+                    <dt className="capitalize text-muted">
                       {formatMetric(metric)}
                     </dt>
                     <dd className="text-lg font-semibold">
@@ -261,14 +261,14 @@ export default function UsageAdminPage() {
               </dl>
             </section>
 
-            <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-stone-900">
+            <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
+              <h2 className="text-lg font-semibold text-foreground">
                 Provider dashboards
               </h2>
-              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-teal-900">
+              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-brand-ink">
                 <li>
                   <a
-                    className="underline"
+                    className="underline decoration-brand/30 underline-offset-2"
                     href="https://console.cloud.google.com/google/maps-apis/metrics"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -278,7 +278,7 @@ export default function UsageAdminPage() {
                 </li>
                 <li>
                   <a
-                    className="underline"
+                    className="underline decoration-brand/30 underline-offset-2"
                     href="https://console.cloud.google.com/iam-admin/quotas"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -288,7 +288,7 @@ export default function UsageAdminPage() {
                 </li>
                 <li>
                   <a
-                    className="underline"
+                    className="underline decoration-brand/30 underline-offset-2"
                     href="https://console.cloud.google.com/billing"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -298,7 +298,7 @@ export default function UsageAdminPage() {
                 </li>
                 <li>
                   <a
-                    className="underline"
+                    className="underline decoration-brand/30 underline-offset-2"
                     href="https://console.upstash.com/"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -307,7 +307,7 @@ export default function UsageAdminPage() {
                   </a>
                 </li>
               </ul>
-              <ul className="mt-4 space-y-1 text-sm text-stone-600">
+              <ul className="mt-4 space-y-1 text-sm text-muted">
                 {snapshot.notes.map((note) => (
                   <li key={note}>• {note}</li>
                 ))}
@@ -330,10 +330,10 @@ function StatCard({
   hint: string;
 }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-      <p className="text-sm text-stone-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-stone-900">{value}</p>
-      <p className="mt-1 text-xs text-stone-500">{hint}</p>
+    <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
+      <p className="text-sm text-muted">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
+      <p className="mt-1 text-xs text-muted">{hint}</p>
     </div>
   );
 }
