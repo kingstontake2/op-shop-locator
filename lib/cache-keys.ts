@@ -1,6 +1,6 @@
 const PREFIX = "opshop";
 /** Bump when nearby payload shape or eligibility filter changes. */
-const NEARBY_CACHE_VERSION = "v2";
+const NEARBY_CACHE_VERSION = "v3";
 const RADIUS_BUCKETS = [5_000, 10_000, 20_000, 35_000, 50_000] as const;
 
 function roundedCoordinate(value: number): string {

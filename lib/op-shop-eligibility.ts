@@ -30,6 +30,19 @@ const STRONG_KEEP_BRANDS: string[] = [
   "salvation",
 ];
 
+/**
+ * Google place_id values (`Shop.id`) to always drop.
+ * Add an id from nearby JSON / Network tab; bump NEARBY_CACHE_VERSION when changing eligibility.
+ */
+export const REJECT_PLACE_IDS = new Set<string>([
+  // e.g. "ChIJxxxxxxxx",
+]);
+
+/** Brands/venues that are never retail op shops (name substring, case-insensitive). */
+const STRONG_REJECT_BRANDS: string[] = [
+  "opportunity international",
+];
+
 /** Name phrases that indicate non-retail / wrong place types. */
 const STRONG_REJECT_NAME_PATTERNS: RegExp[] = [
   /\bhead\s*office\b/i,
@@ -75,6 +88,11 @@ function hasStrongKeepName(name: string): boolean {
   return STRONG_KEEP_BRANDS.some((brand) => lower.includes(brand));
 }
 
+function hasStrongRejectBrand(name: string): boolean {
+  const lower = name.toLowerCase();
+  return STRONG_REJECT_BRANDS.some((brand) => lower.includes(brand));
+}
+
 function hasStrongRejectName(name: string): boolean {
   return STRONG_REJECT_NAME_PATTERNS.some((re) => re.test(name));
 }
@@ -85,13 +103,19 @@ function hasRejectType(types: string[]): boolean {
 
 /**
  * Balanced eligibility: keep Google Nearby results unless they look
- * clearly non-retail. Strong keep signals override strong rejects.
+ * clearly non-retail. Place-id deny wins over keep; strong keep otherwise
+ * overrides reject brands/names/types.
  */
-export function isLikelyOpShop(shop: Pick<Shop, "name" | "types">): boolean {
+export function isLikelyOpShop(
+  shop: Pick<Shop, "id" | "name" | "types">,
+): boolean {
+  if (REJECT_PLACE_IDS.has(shop.id)) {
+    return false;
+  }
   if (hasStrongKeepName(shop.name)) {
     return true;
   }
-  if (hasStrongRejectName(shop.name)) {
+  if (hasStrongRejectBrand(shop.name) || hasStrongRejectName(shop.name)) {
     return false;
   }
   if (hasRejectType(shop.types)) {
